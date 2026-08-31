@@ -18,6 +18,17 @@ function Get-Catalog {
     return @($registry.pets | Where-Object { $_.style -eq '3d' -and $_.category -eq 'pokemon' } | Sort-Object gen, pokedex_id)
 }
 
+function Get-EvolvingCatalog($Catalog, $Species) {
+    $availableIds = @{}
+    foreach ($pet in $Catalog) { $availableIds[[string]$pet.pokedex_id] = $true }
+    $evolvingIds = @{}
+    foreach ($entry in $Species) {
+        $parentId = [string]$entry.evolves_from_species_id
+        if ($parentId -and $availableIds.ContainsKey([string]$entry.id)) { $evolvingIds[$parentId] = $true }
+    }
+    return @($Catalog | Where-Object { $evolvingIds.ContainsKey([string]$_.pokedex_id) })
+}
+
 function Get-EvolutionPaths($Selected, $Catalog, $Species) {
     $byIdentifier = @{}
     foreach ($pet in $Catalog) { $byIdentifier[$pet.species_slug] = $pet }
@@ -88,6 +99,7 @@ if (-not (Test-Path -LiteralPath $registryPath) -or -not (Test-Path -LiteralPath
 }
 $catalog = Get-Catalog
 $species = @(Import-Csv -LiteralPath $speciesPath)
+$selectableCatalog = @(Get-EvolvingCatalog $catalog $species)
 
 if ($SelfTest) {
     $charmander = $catalog | Where-Object species_slug -eq 'charmander' | Select-Object -First 1
@@ -97,8 +109,10 @@ if ($SelfTest) {
     if (($charmanderPaths[0] | ForEach-Object species_slug) -join ',' -ne 'charmander,charmeleon,charizard') { throw 'Evolution lineaire invalide.' }
     if ($eeveePaths.Count -lt 8) { throw 'Branches d evolution invalides.' }
     if ($catalog.Count -lt 1000) { throw 'Catalogue 3D incomplet.' }
+    if (-not ($selectableCatalog | Where-Object species_slug -eq 'charmander')) { throw 'Pokemon evolutif absent.' }
+    if ($selectableCatalog | Where-Object species_slug -eq 'charizard') { throw 'Pokemon sans evolution affiche.' }
     if ([math]::Max(0, [math]::Min(-1, 2)) -ne 0) { throw 'Indice de progression invalide.' }
-    Write-Output "Self-test UI OK ($($catalog.Count) Pokemon, $($eeveePaths.Count) branches pour Eevee)"
+    Write-Output "Self-test UI OK ($($selectableCatalog.Count) Pokemon evolutifs, $($eeveePaths.Count) branches pour Eevee)"
     exit 0
 }
 
@@ -109,7 +123,7 @@ Add-Type -AssemblyName System.Drawing
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'PokemonPet pour Codex'
 $form.StartPosition = 'CenterScreen'
-$form.ClientSize = New-Object System.Drawing.Size(520, 500)
+$form.ClientSize = New-Object System.Drawing.Size(520, 570)
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox = $false
 $form.BackColor = [System.Drawing.ColorTranslator]::FromHtml('#FFF7ED')
@@ -155,9 +169,23 @@ $evolution.DropDownStyle = 'DropDownList'
 $evolution.SetBounds(26, 258, 468, 34)
 $form.Controls.Add($evolution)
 
+$difficultyOptions = @(
+    [pscustomobject]@{ Label = 'Detente - 1 XP pour 50 tokens'; TokensPerXp = 50 },
+    [pscustomobject]@{ Label = 'Normal - 1 XP pour 100 tokens'; TokensPerXp = 100 },
+    [pscustomobject]@{ Label = 'Difficile - 1 XP pour 250 tokens'; TokensPerXp = 250 },
+    [pscustomobject]@{ Label = 'Extreme - 1 XP pour 500 tokens'; TokensPerXp = 500 }
+)
+Add-Label 'Difficulte XP (plus de tokens = plus difficile)' 300
+$difficulty = New-Object System.Windows.Forms.ComboBox
+$difficulty.DropDownStyle = 'DropDownList'
+$difficulty.DisplayMember = 'Label'
+$difficulty.SetBounds(26, 324, 468, 34)
+foreach ($option in $difficultyOptions) { [void]$difficulty.Items.Add($option) }
+$form.Controls.Add($difficulty)
+
 $statusBox = New-Object System.Windows.Forms.GroupBox
 $statusBox.Text = 'Progression actuelle'
-$statusBox.SetBounds(26, 310, 468, 88)
+$statusBox.SetBounds(26, 374, 468, 88)
 $form.Controls.Add($statusBox)
 
 $status = New-Object System.Windows.Forms.Label
@@ -170,7 +198,7 @@ $statusBox.Controls.Add($progress)
 
 $autostart = New-Object System.Windows.Forms.CheckBox
 $autostart.Text = 'Demarrer PokemonPet automatiquement avec Windows'
-$autostart.SetBounds(28, 410, 440, 28)
+$autostart.SetBounds(28, 474, 440, 28)
 $form.Controls.Add($autostart)
 
 $save = New-Object System.Windows.Forms.Button
@@ -178,20 +206,20 @@ $save.Text = 'Appliquer et lancer'
 $save.BackColor = [System.Drawing.ColorTranslator]::FromHtml('#2563EB')
 $save.ForeColor = [System.Drawing.Color]::White
 $save.FlatStyle = 'Flat'
-$save.SetBounds(314, 448, 180, 42)
+$save.SetBounds(314, 516, 180, 42)
 $form.Controls.Add($save)
 $form.AcceptButton = $save
 
 $cancel = New-Object System.Windows.Forms.Button
 $cancel.Text = 'Fermer'
-$cancel.SetBounds(208, 448, 96, 42)
+$cancel.SetBounds(208, 516, 96, 42)
 $cancel.Add_Click({ $form.Close() })
 $form.Controls.Add($cancel)
 
 $script:paths = @()
 $generation.Add_SelectedIndexChanged({
     $pokemon.Items.Clear()
-    $items = @($catalog | Where-Object { [int]$_.gen -eq ($generation.SelectedIndex + 1) } | Sort-Object name)
+    $items = @($selectableCatalog | Where-Object { [int]$_.gen -eq ($generation.SelectedIndex + 1) } | Sort-Object name)
     foreach ($item in $items) { [void]$pokemon.Items.Add($item) }
     if ($pokemon.Items.Count -gt 0) { $pokemon.SelectedIndex = 0 }
 })
@@ -223,6 +251,11 @@ if ($next.Count -gt 0) {
     $progress.Value = [math]::Min($progress.Maximum, [int]$existingState.xp - [int]$previous)
 } else { $progress.Maximum = 1; $progress.Value = 1 }
 $autostart.Checked = $null -ne (Get-ItemProperty -Path $runKey -Name $runName -ErrorAction SilentlyContinue)
+$currentTokensPerXp = if ($existingConfig -and $existingConfig.tokensPerXp) { [int]$existingConfig.tokensPerXp } else { 100 }
+for ($i = 0; $i -lt $difficulty.Items.Count; $i++) {
+    if ([int]$difficulty.Items[$i].TokensPerXp -eq $currentTokensPerXp) { $difficulty.SelectedIndex = $i; break }
+}
+if ($difficulty.SelectedIndex -lt 0) { $difficulty.SelectedIndex = 1 }
 
 $initialGen = if ($selectionPet) { [int]$selectionPet.gen } else { 1 }
 $generation.SelectedIndex = $initialGen - 1
@@ -251,7 +284,7 @@ $save.Add_Click({
     [ordered]@{
         stages = $stages
         evolutionXp = @(Get-Thresholds $stages.Count)
-        tokensPerXp = 100
+        tokensPerXp = [int]$difficulty.SelectedItem.TokensPerXp
     } | ConvertTo-Json | Set-Content -LiteralPath $configPath -Encoding utf8
     if ($changed) { [ordered]@{ xp = 0; stage = -1 } | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding utf8 }
     Set-Autostart $autostart.Checked

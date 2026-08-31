@@ -6,10 +6,11 @@ Choisissez un Pokémon par génération, utilisez Codex et gagnez de l’XP. La 
 
 ## Fonctionnalités
 
-- sélecteur natif Windows `Génération → Pokémon`, sans aperçu lourd ;
+- sélecteur natif Windows `Génération → Pokémon`, limité aux Pokémon pouvant encore évoluer ;
 - 1 004 Pokémon animés en style 3D, générations 1 à 9 ;
 - parcours ramifiés, dont les huit évolutions d’Évoli ;
 - XP calculée localement à partir des compteurs de tokens Codex hors cache ;
+- difficulté d’XP configurable sans réinitialiser la progression ;
 - seuils par défaut : 500 XP puis 2 000 XP ;
 - démarrage automatique avec Windows en option ;
 - une seule entrée `PokemonPet` dans le menu des mascottes Codex.
@@ -27,6 +28,17 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 Le programme télécharge le registre de [Codex PokéPets](https://github.com/dnnyngyen/codex-pokepets) et les données d’évolution de [PokéAPI](https://github.com/PokeAPI/pokeapi). Les sprites ne sont téléchargés qu’au moment où une forme est utilisée.
 
 Après avoir appliqué votre choix, sélectionnez **PokemonPet** dans **Settings → Appearance → Pets** de Codex. Un redémarrage de Codex peut être nécessaire lors du premier ajout.
+
+### Difficulté d’XP
+
+| Difficulté | Gain |
+| --- | --- |
+| Détente | 1 XP pour 50 tokens utiles |
+| Normal | 1 XP pour 100 tokens utiles |
+| Difficile | 1 XP pour 250 tokens utiles |
+| Extrême | 1 XP pour 500 tokens utiles |
+
+Changer uniquement la difficulté conserve l’XP déjà gagnée.
 
 ## Utilisation
 
