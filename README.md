@@ -13,6 +13,7 @@ Choisissez un Pokémon par génération, utilisez Codex et gagnez de l’XP. La 
 - difficulté d’XP configurable sans réinitialiser la progression ;
 - seuils par défaut : 500 XP puis 2 000 XP ;
 - démarrage automatique avec Windows en option ;
+- icône Poké Ball dans la zone de notification Windows avec XP, progression, réglages et arrêt ;
 - une seule entrée `PokemonPet` dans le menu des mascottes Codex.
 
 ## Installation
@@ -39,6 +40,10 @@ Après avoir appliqué votre choix, sélectionnez **PokemonPet** dans **Settings
 | Extrême | 1 XP pour 500 tokens utiles |
 
 Changer uniquement la difficulté conserve l’XP déjà gagnée.
+
+### Icône de notification
+
+Lorsque PokemonPet fonctionne, une icône apparaît près de l’horloge Windows. Un double-clic ouvre le sélecteur. Le clic droit affiche le Pokémon actif, une barre de progression vers la prochaine évolution, l’accès aux réglages et la commande d’arrêt.
 
 ## Utilisation
 
@@ -70,6 +75,8 @@ Utilisez `-KeepProgress` pour conserver l’XP et la configuration.
 Le contrat actuel des mascottes Codex ne fournit ni catégories personnalisées ni sous-menus. Le dépôt installe donc une seule mascotte `PokemonPet` et utilise son propre sélecteur `Génération → Pokémon`.
 
 Ce projet cible Windows et repose sur un format de mascotte Codex non documenté publiquement, susceptible d’évoluer.
+
+Le fichier `preview.gif` des packs de pets n’est pas utilisé par la mascotte active. Ajouter une barre directement sous le Pokémon imposerait de régénérer les 88 cases de `spritesheet.webp` à chaque progression. La barre est donc affichée dans l’icône de notification, solution plus stable et légère.
 
 ## Crédits et droits
 

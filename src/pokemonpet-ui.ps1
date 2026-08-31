@@ -9,6 +9,7 @@ $speciesPath = Join-Path $DataRoot 'pokemon-species.csv'
 $configPath = Join-Path $DataRoot 'config.json'
 $statePath = Join-Path $DataRoot 'state.json'
 $pidPath = Join-Path $DataRoot 'watcher.pid'
+$stopPath = Join-Path $DataRoot 'stop-watcher'
 $watcherPath = Join-Path $PSScriptRoot 'pokemonpet.ps1'
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $runName = 'PokemonPet'
@@ -71,7 +72,15 @@ function Stop-Watcher {
     if (-not (Test-Path -LiteralPath $pidPath)) { return }
     $watcherPid = [int](Get-Content -Raw -LiteralPath $pidPath)
     $process = Get-Process -Id $watcherPid -ErrorAction SilentlyContinue
-    if ($process) { Stop-Process -Id $watcherPid -Force }
+    if ($process) {
+        Set-Content -LiteralPath $stopPath -Value 'stop' -Encoding ascii
+        $deadline = [datetime]::UtcNow.AddSeconds(4)
+        while ((Get-Process -Id $watcherPid -ErrorAction SilentlyContinue) -and [datetime]::UtcNow -lt $deadline) {
+            Start-Sleep -Milliseconds 100
+        }
+        if (Get-Process -Id $watcherPid -ErrorAction SilentlyContinue) { Stop-Process -Id $watcherPid -Force }
+    }
+    Remove-Item -LiteralPath $stopPath -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $pidPath -Force -ErrorAction SilentlyContinue
 }
 

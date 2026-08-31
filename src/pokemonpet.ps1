@@ -10,6 +10,7 @@ $ErrorActionPreference = 'Stop'
 $statePath = Join-Path $DataRoot 'state.json'
 $configPath = Join-Path $DataRoot 'config.json'
 $pidPath = Join-Path $DataRoot 'watcher.pid'
+$stopPath = Join-Path $DataRoot 'stop-watcher'
 $cacheRoot = Join-Path $DataRoot 'pets'
 $assetBaseUrl = 'https://raw.githubusercontent.com/dnnyngyen/codex-pokepets/main/pets'
 $codexRoot = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }
@@ -27,6 +28,36 @@ function Get-StageIndex([int]$Xp, [int[]]$Thresholds) {
 function Get-XpFromUsage($Usage, [int]$Divisor) {
     $usefulTokens = [math]::Max(0, [int64]$Usage.input_tokens - [int64]$Usage.cached_input_tokens) + [int64]$Usage.output_tokens
     return [int][math]::Ceiling($usefulTokens / $Divisor)
+}
+
+function Get-XpProgressText([int]$Xp, [int[]]$Thresholds) {
+    $next = @($Thresholds | Where-Object { $_ -gt $Xp } | Select-Object -First 1)
+    if ($next.Count -eq 0) { return "$Xp XP - evolution finale" }
+    $previous = @($Thresholds | Where-Object { $_ -le $Xp } | Select-Object -Last 1)[0]
+    $range = [math]::Max(1, [int]$next[0] - [int]$previous)
+    $filled = [math]::Min(10, [math]::Floor((($Xp - [int]$previous) / $range) * 10))
+    $bar = ('#' * $filled) + ('-' * (10 - $filled))
+    return "$Xp/$($next[0]) XP [$bar]"
+}
+
+function New-PokeballIcon {
+    $bitmap = New-Object System.Drawing.Bitmap 32, 32
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    $outlinePen = New-Object System.Drawing.Pen ([System.Drawing.Color]::Black), 3
+    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $graphics.FillEllipse([System.Drawing.Brushes]::White, 2, 2, 28, 28)
+    $graphics.FillPie([System.Drawing.Brushes]::Red, 2, 2, 28, 28, 180, 180)
+    $graphics.DrawEllipse($outlinePen, 2, 2, 28, 28)
+    $graphics.DrawLine($outlinePen, 3, 16, 29, 16)
+    $graphics.FillEllipse([System.Drawing.Brushes]::White, 11, 11, 10, 10)
+    $graphics.DrawEllipse($outlinePen, 11, 11, 10, 10)
+    $handle = $bitmap.GetHicon()
+    $icon = [System.Drawing.Icon]::FromHandle($handle).Clone()
+    [void][NativeIcon]::DestroyIcon($handle)
+    $outlinePen.Dispose()
+    $graphics.Dispose()
+    $bitmap.Dispose()
+    return $icon
 }
 
 function Get-CachedPet([string]$Slug) {
@@ -59,16 +90,32 @@ function Install-CurrentPet([string]$Slug, [int]$Xp) {
     Copy-Item -LiteralPath (Join-Path $source 'spritesheet.webp') -Destination (Join-Path $installedPetPath 'spritesheet.webp') -Force
 }
 
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class NativeIcon {
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern bool DestroyIcon(IntPtr handle);
+}
+'@
+
 if ($SelfTest) {
     if ((Get-StageIndex 499 @(0, 500, 2000)) -ne 0) { throw 'Stage test failed' }
     if ((Get-StageIndex 500 @(0, 500, 2000)) -ne 1) { throw 'Evolution test failed' }
     $usage = [pscustomobject]@{ input_tokens = 1200; cached_input_tokens = 1000; output_tokens = 101 }
     if ((Get-XpFromUsage $usage 100) -ne 4) { throw 'XP test failed' }
+    if ((Get-XpProgressText 250 @(0, 500, 2000)) -ne '250/500 XP [#####-----]') { throw 'Progress test failed' }
+    $testIcon = New-PokeballIcon
+    if (-not $testIcon) { throw 'Tray icon test failed' }
+    $testIcon.Dispose()
     Write-Output 'Self-test OK'
     exit 0
 }
 
 New-Item -ItemType Directory -Force -Path $DataRoot | Out-Null
+Remove-Item -LiteralPath $stopPath -Force -ErrorAction SilentlyContinue
 if (Test-Path -LiteralPath $configPath) {
     $config = Get-Content -Raw -LiteralPath $configPath | ConvertFrom-Json
     if (-not $PSBoundParameters.ContainsKey('Stages')) { $Stages = @($config.stages) }
@@ -86,6 +133,34 @@ $state = if (Test-Path -LiteralPath $statePath) {
     [pscustomobject]@{ xp = 0; stage = -1 }
 }
 
+$trayMenu = New-Object System.Windows.Forms.ContextMenuStrip
+$trayStatus = New-Object System.Windows.Forms.ToolStripMenuItem
+$trayStatus.Enabled = $false
+$openSettings = New-Object System.Windows.Forms.ToolStripMenuItem
+$openSettings.Text = 'Ouvrir les reglages'
+$quitWatcher = New-Object System.Windows.Forms.ToolStripMenuItem
+$quitWatcher.Text = 'Quitter PokemonPet'
+[void]$trayMenu.Items.Add($trayStatus)
+[void]$trayMenu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
+[void]$trayMenu.Items.Add($openSettings)
+[void]$trayMenu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
+[void]$trayMenu.Items.Add($quitWatcher)
+
+$trayIcon = New-Object System.Windows.Forms.NotifyIcon
+$trayIcon.Icon = New-PokeballIcon
+$trayIcon.ContextMenuStrip = $trayMenu
+$trayIcon.Visible = $true
+$openSelector = {
+    $hostExe = (Get-Process -Id $PID).Path
+    Start-Process -FilePath $hostExe -WindowStyle Normal -ArgumentList @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f (Join-Path $PSScriptRoot 'pokemonpet-ui.ps1')),
+        '-DataRoot', ('"{0}"' -f $DataRoot)
+    ) | Out-Null
+}
+$openSettings.Add_Click($openSelector)
+$trayIcon.Add_DoubleClick($openSelector)
+$quitWatcher.Add_Click({ Set-Content -LiteralPath $stopPath -Value 'stop' -Encoding ascii })
+
 $lineCounts = @{}
 Get-ChildItem -LiteralPath $sessionsPath -Filter '*.jsonl' -File -Recurse | ForEach-Object {
     $lineCounts[$_.FullName] = @(Get-Content -LiteralPath $_.FullName).Count
@@ -97,7 +172,7 @@ $displayedXp = -1
 Set-Content -LiteralPath $pidPath -Value $PID -Encoding ascii
 
 try {
-    while ($true) {
+    while (-not (Test-Path -LiteralPath $stopPath)) {
         $files = Get-ChildItem -LiteralPath $sessionsPath -Filter '*.jsonl' -File -Recurse |
             Where-Object { $_.LastWriteTimeUtc -gt [datetime]::UtcNow.AddMinutes(-10) }
         foreach ($file in $files) {
@@ -128,8 +203,17 @@ try {
         }
         $displayedXp = [int]$state.xp
         $state | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding utf8
+        $pokemonName = $Stages[$stage] -replace '-3d$', ''
+        $progressText = Get-XpProgressText ([int]$state.xp) $EvolutionXp
+        $trayStatus.Text = "$pokemonName - $progressText"
+        $trayIcon.Text = "PokemonPet - $pokemonName - $($state.xp) XP".Substring(0, [math]::Min(63, "PokemonPet - $pokemonName - $($state.xp) XP".Length))
+        [System.Windows.Forms.Application]::DoEvents()
         Start-Sleep -Seconds 2
     }
 } finally {
+    $trayIcon.Visible = $false
+    $trayIcon.Dispose()
+    $trayMenu.Dispose()
+    Remove-Item -LiteralPath $stopPath -Force -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $pidPath) { Remove-Item -LiteralPath $pidPath -Force }
 }
