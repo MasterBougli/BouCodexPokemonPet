@@ -7,6 +7,7 @@ Choisissez un Pokémon par génération, utilisez Codex et gagnez de l’XP. La 
 ## Fonctionnalités
 
 - sélecteur natif Windows `Génération → Pokémon`, limité aux Pokémon pouvant encore évoluer ;
+- noms français et aperçu GIF animé du Pokémon pendant la sélection ;
 - 1 004 Pokémon animés en style 3D, générations 1 à 9 ;
 - parcours ramifiés, dont les huit évolutions d’Évoli ;
 - XP calculée localement à partir des compteurs de tokens Codex hors cache ;
@@ -26,7 +27,7 @@ cd BouCodexPokemonPet
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-Le programme télécharge le registre de [Codex PokéPets](https://github.com/dnnyngyen/codex-pokepets) et les données d’évolution de [PokéAPI](https://github.com/PokeAPI/pokeapi). Les sprites ne sont téléchargés qu’au moment où une forme est utilisée.
+Le programme télécharge le registre de [Codex PokéPets](https://github.com/dnnyngyen/codex-pokepets), ainsi que les évolutions et noms français de [PokéAPI](https://github.com/PokeAPI/pokeapi). Les sprites et aperçus animés ne sont chargés qu’au moment où ils sont utilisés.
 
 Après avoir appliqué votre choix, sélectionnez **PokemonPet** dans **Settings → Appearance → Pets** de Codex. Un redémarrage de Codex peut être nécessaire lors du premier ajout.
 
@@ -76,7 +77,7 @@ Le contrat actuel des mascottes Codex ne fournit ni catégories personnalisées 
 
 Ce projet cible Windows et repose sur un format de mascotte Codex non documenté publiquement, susceptible d’évoluer.
 
-Le fichier `preview.gif` des packs de pets n’est pas utilisé par la mascotte active. Ajouter une barre directement sous le Pokémon imposerait de régénérer les 88 cases de `spritesheet.webp` à chaque progression. La barre est donc affichée dans l’icône de notification, solution plus stable et légère.
+Le fichier `preview.gif` des packs de pets sert uniquement d’aperçu dans le sélecteur. Ajouter une barre directement sous la mascotte active imposerait de régénérer les 88 cases de `spritesheet.webp` à chaque progression. La barre est donc affichée dans l’icône de notification, solution plus stable et légère.
 
 ## Crédits et droits
 

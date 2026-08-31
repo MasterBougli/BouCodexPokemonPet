@@ -11,6 +11,7 @@ $statePath = Join-Path $DataRoot 'state.json'
 New-Item -ItemType Directory -Force -Path $DataRoot | Out-Null
 Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/dnnyngyen/codex-pokepets/main/pets.json' -OutFile (Join-Path $DataRoot 'pets.json')
 Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/csv/pokemon_species.csv' -OutFile (Join-Path $DataRoot 'pokemon-species.csv')
+Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/csv/pokemon_species_names.csv' -OutFile (Join-Path $DataRoot 'pokemon-species-names.csv')
 
 # Migre la progression des premieres versions locales sans la publier dans Git.
 $legacyState = Join-Path $PSScriptRoot '.pokemonpet-state.json'
