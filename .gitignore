@@ -1,0 +1,14 @@
+# Etat local et donnees telechargees
+/.pokemonpet-state.json
+/.pokemonpet.pid
+/pokemonpet-config.json
+/pokemon-species.csv
+/pokemonpet.ps1
+/pokemonpet-ui.ps1
+/graphify-out/
+
+# Fichiers Windows et editeurs
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
